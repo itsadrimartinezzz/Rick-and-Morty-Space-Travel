@@ -41,7 +41,7 @@ Un sistema solar pequeño y compacto que se explora desde una nave: un sol al ce
 
 Los renders de los mundos, el sol y la nave están hechos en Blender. Las imágenes de la vista general y del Portal Verde son capturas del juego.
 
-También están el [catálogo con todos los modelos](Modelado/catalogo.jpg) y el [video de demostración](Media/Demostracion.mp4).
+También están el [catálogo con todos los modelos](Modelado/catalogo.jpg) y el [video de demostración](https://www.youtube.com/watch?v=1SHfklrgmSM).
 
 ## Organización
 
