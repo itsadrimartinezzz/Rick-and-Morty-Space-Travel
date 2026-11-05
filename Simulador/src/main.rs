@@ -568,6 +568,20 @@ impl World {
         Mat4::from_scale_rotation_translation(Vec3::splat(PLANET_SCALE[i]), rotation, center(i, t))
     }
 
+    // Suma de la atraccion del sol y los cinco mundos: a = g * (radio / distancia)^2
+    pub fn gravity_at(&self, eye: Vec3, t: f32) -> Vec3 {
+        let mut total = Vec3::ZERO;
+        let bodies = (0..5)
+            .map(|i| (center(i, t), self.planet_radius(i)))
+            .chain([(Vec3::ZERO, self.sun_radius())]);
+        for (position, radius) in bodies {
+            let to_body = position - eye;
+            let squared = to_body.length_squared().max(1e-3);
+            total += to_body / squared.sqrt() * SURFACE_GRAVITY * radius * radius / squared;
+        }
+        total
+    }
+
     // Indica si un tramo de vuelo atraviesa el disco del portal
     pub fn crosses_portal(&self, old: Vec3, next: Vec3) -> bool {
         let normal = portal_normal();
@@ -684,6 +698,33 @@ impl World {
         count + draw(fb, view, &self.canopy, transform, Effect::Glass, t)
     }
 
+    // Devuelve la posicion permitida y si hubo choque la normal de la superficie
+    pub fn safe_move(&self, old: Vec3, mut next: Vec3, t: f32, dt: f32) -> (Vec3, Option<Vec3>) {
+        let mut hit = None;
+        for i in 0..=5 {
+            let (p, previous, r) = if i == 5 {
+                (Vec3::ZERO, Vec3::ZERO, self.sun_radius() + SURFACE_MARGIN)
+            } else {
+                (center(i, t), center(i, t - dt), self.collision_radius_planet(i))
+            };
+            let a = old - previous;
+            let b = next - p;
+            let delta = b - a;
+            let closest =
+                a + delta * ((-a.dot(delta) / delta.length_squared().max(1e-8)).clamp(0., 1.));
+            if closest.length_squared() < r * r {
+                let dir = if b.length_squared() < 1e-6 || a.dot(b) < 0. {
+                    a
+                } else {
+                    b
+                };
+                let normal = dir.try_normalize().unwrap_or(Vec3::Z);
+                next = p + r * normal;
+                hit = Some(normal);
+            }
+        }
+        (next, hit)
+    }
 }
 
 // Inclinacion fija de la nave respecto a la camara
