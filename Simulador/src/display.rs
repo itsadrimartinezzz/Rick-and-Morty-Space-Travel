@@ -128,6 +128,11 @@ extern "C" {
     fn SetMusicVolume(music: Music, volume: f32);
     fn IsKeyDown(key: c_int) -> bool;
     fn IsKeyPressed(key: c_int) -> bool;
+    fn IsGamepadAvailable(gamepad: c_int) -> bool;
+    fn GetGamepadName(gamepad: c_int) -> *const c_char;
+    fn IsGamepadButtonDown(gamepad: c_int, button: c_int) -> bool;
+    fn IsGamepadButtonPressed(gamepad: c_int, button: c_int) -> bool;
+    fn GetGamepadAxisMovement(gamepad: c_int, axis: c_int) -> f32;
 }
 
 // Codigos KeyboardKey de raylib
@@ -165,6 +170,59 @@ pub enum Key {
     F2 = 291,
     LShift = 340,
     RShift = 344,
+}
+
+// Botones GamepadButton de raylib con su nombre en un control de PlayStation
+#[repr(i32)]
+#[derive(Clone, Copy)]
+pub enum Button {
+    DpadLeft = 4,
+    DpadRight = 2,
+    Triangle = 5,
+    Circle = 6,
+    Cross = 7,
+    Square = 8,
+    L1 = 9,
+    R1 = 11,
+    Share = 13,
+    Options = 15,
+    L3 = 16,
+    R3 = 17,
+}
+
+// Estado analogico del control con zona muerta ya aplicada
+#[derive(Clone, Copy, Default)]
+pub struct Sticks {
+    pub left_x: f32,
+    pub left_y: f32,
+    pub right_x: f32,
+    pub right_y: f32,
+    pub l2: f32,
+    pub r2: f32,
+}
+
+// Ignora la deriva del stick y aplica una curva para mas precision
+fn dead_zone(value: f32) -> f32 {
+    const DEAD: f32 = 0.14;
+    if value.abs() < DEAD {
+        return 0.;
+    }
+    let scaled = (value.abs() - DEAD) / (1. - DEAD);
+    // Curva cuadratica: mas precision con el stick apenas inclinado
+    (scaled * scaled).min(1.) * value.signum()
+}
+
+// Convierte un gatillo a un rango de 0 a 1: en reposo vale -1 o 0 segun el driver
+fn trigger(value: f32) -> f32 {
+    if value == 0. {
+        return 0.;
+    }
+    let pressed = (value + 1.) * 0.5;
+    if pressed < 0.08 {
+        0.
+    } else {
+        pressed.min(1.)
+    }
 }
 
 // Ventana de raylib con la textura del framebuffer y el audio
@@ -326,6 +384,56 @@ impl Window {
         unsafe { IsKeyPressed(key as c_int) }
     }
 
+    // Primer control conectado; admite conectarlo con el juego abierto
+    pub fn gamepad(&self) -> Option<i32> {
+        (0..4).find(|&id| unsafe { IsGamepadAvailable(id) })
+    }
+
+    // Nombre y ejes crudos de cada control para el diagnostico `--probar-control`
+    pub fn gamepad_report(&self) -> Vec<String> {
+        (0..4)
+            .filter(|&id| unsafe { IsGamepadAvailable(id) })
+            .map(|id| unsafe {
+                let name = CStr::from_ptr(GetGamepadName(id)).to_string_lossy();
+                let axes: Vec<String> = (0..6)
+                    .map(|a| format!("{:+.2}", GetGamepadAxisMovement(id, a)))
+                    .collect();
+                let buttons: Vec<i32> = (1..18)
+                    .filter(|&b| IsGamepadButtonDown(id, b))
+                    .collect();
+                format!("#{id} {name} | ejes {} | botones {buttons:?}", axes.join(" "))
+            })
+            .collect()
+    }
+
+    // Indica si un boton del control esta mantenido
+    pub fn button(&self, button: Button) -> bool {
+        self.gamepad()
+            .is_some_and(|id| unsafe { IsGamepadButtonDown(id, button as c_int) })
+    }
+
+    // Indica si un boton del control se pulso en este cuadro
+    pub fn button_pressed(&self, button: Button) -> bool {
+        self.gamepad()
+            .is_some_and(|id| unsafe { IsGamepadButtonPressed(id, button as c_int) })
+    }
+
+    // Lee sticks y gatillos del control
+    pub fn sticks(&self) -> Sticks {
+        let Some(id) = self.gamepad() else {
+            return Sticks::default();
+        };
+        let axis = |index| unsafe { GetGamepadAxisMovement(id, index) };
+        Sticks {
+            left_x: dead_zone(axis(0)),
+            left_y: dead_zone(axis(1)),
+            right_x: dead_zone(axis(2)),
+            right_y: dead_zone(axis(3)),
+            l2: trigger(axis(4)),
+            r2: trigger(axis(5)),
+        }
+    }
+
     // Muestra el framebuffer en la ventana y actualiza audio y entrada
     pub fn present(&self, pixels: &[u8]) {
         unsafe {
@@ -390,3 +498,23 @@ impl Drop for Window {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dead_zone_ignores_drift_and_keeps_full_range() {
+        assert_eq!(dead_zone(0.1), 0.);
+        assert_eq!(dead_zone(-0.1), 0.);
+        assert!((dead_zone(1.) - 1.).abs() < 1e-5);
+        assert!((dead_zone(-1.) + 1.).abs() < 1e-5);
+        assert!(dead_zone(0.5) < 0.5);
+    }
+
+    #[test]
+    fn trigger_at_rest_does_not_accelerate() {
+        assert_eq!(trigger(-1.), 0.);
+        assert_eq!(trigger(0.), 0.);
+        assert!((trigger(1.) - 1.).abs() < 1e-5);
+    }
+}
