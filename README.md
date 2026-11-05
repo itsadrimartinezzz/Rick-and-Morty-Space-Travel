@@ -226,3 +226,4 @@ Referencias visuales:
 3. [Venzenulon 7](https://rickandmorty.fandom.com/wiki/Venzenulon_7). Valles verdes, montañas y bandada azul.
 4. [Alphabetrium](https://rickandmorty.fandom.com/wiki/Alphabetrium). Salón del consejo con alfombra roja, arcadas doradas y los consejeros J, Q y F.
 5. [Unity's Planet](https://rickandmorty.fandom.com/wiki/Unity%27s_Planet). Praderas verde azuladas, vegetación morada y un centro urbano inspirado en la mente colmena.
+6. Imagenes de todos los planetas hecha por IA 
