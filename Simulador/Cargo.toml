@@ -1,0 +1,11 @@
+[package]
+name = "carga_modelos"
+version = "0.1.0"
+edition = "2021"
+description = "Proyecto Galaxia: exploracion espacial con rasterizado por CPU"
+
+[dependencies]
+glam = "=0.27.0"
+png = "=0.17.16"
+
+

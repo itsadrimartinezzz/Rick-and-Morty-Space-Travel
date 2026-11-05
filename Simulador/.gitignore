@@ -1,0 +1,4 @@
+target/
+.build-cache/
+Captura.png
+control.txt
